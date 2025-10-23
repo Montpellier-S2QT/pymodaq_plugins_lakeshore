@@ -33,9 +33,7 @@ class DAQ_0DViewer_335TempController(DAQ_Viewer_base):
     """
     params = comon_parameters+[
         {'title': 'Address:', 'name': 'address', 'type': 'str',
-                 'value': '', 'readonly': False},
-        {'title': 'Reading rate:', 'name': 'rate', 'type': 'float',
-                 'value': 1, 'readonly': False}
+                 'value': 'COM6', 'readonly': False},
         ## TODO for your custom plugin: elements to be added here as dicts in order to control your custom stage
         ]
 
@@ -55,9 +53,12 @@ class DAQ_0DViewer_335TempController(DAQ_Viewer_base):
         param: Parameter
             A given parameter (within detector_settings) whose value has been changed by the user
         """
+
         ## TODO for your custom plugin
-        if param.name() == "a_parameter_you've_added_in_self.params":
-           self.controller.your_method_to_apply_this_param_change()  # when writing your own plugin replace this line
+        if param.name() == "address":
+            self.controller = Model335(baud_rate = 57600, com_port = self.settings.child("address").value())  #instantiate you driver with whatever arguments are needed
+
+        #   self.controller.your_method_to_apply_this_param_change()  # when writing your own plugin replace this line
 #        elif ...
         ##
 
@@ -77,21 +78,21 @@ class DAQ_0DViewer_335TempController(DAQ_Viewer_base):
             False if initialization failed otherwise True
         """
 
-        raise NotImplementedError  # TODO when writing your own plugin remove this line and modify the one below
+        # raise NotImplementedError  # TODO when writing your own plugin remove this line and modify the one below
         if self.is_master:
-            self.controller = Model335()  #instantiate you driver with whatever arguments are needed
-            self.controller.open_communication() # call eventual methods
-            initialized = self.controller.a_method_or_atttribute_to_check_if_init()  # TODO
+            self.controller = Model335(baud_rate = 57600, com_port = self.settings.child("address").value())  #instantiate you driver with whatever arguments are needed
+            initialized = True
         else:
             self.controller = controller
             initialized = True
 
         # TODO for your custom plugin (optional) initialize viewers panel with the future type of data
-        self.dte_signal_temp.emit(DataToExport(name='temperature',
-                                               data=[DataFromPlugins(name='temperature',
-                                                                    data=[np.array([0]), np.array([0])],
-                                                                    dim='Data0D',
-                                                                    labels=['Channel A', 'Channel B'])]))
+        # data_tot = self.controller.get_all_kelvin_reading()
+        # self.dte_signal_temp.emit(DataToExport(name='temperature',
+        #                                        data=[DataFromPlugins(name='temperature',
+        #                                                             data=[np.array(data_tot[0]), np.array(data_tot[0])],
+        #                                                             dim='Data0D',
+        #                                                             labels=['Channel A', 'Channel B'])]))
 
         info = "Initialized connection."
         return info, initialized
@@ -99,10 +100,10 @@ class DAQ_0DViewer_335TempController(DAQ_Viewer_base):
     def close(self):
         """Terminate the communication protocol"""
         ## TODO for your custom plugin
-        raise NotImplementedError  # when writing your own plugin remove this line
+        #raise NotImplementedError  # when writing your own plugin remove this line
         if self.is_master:
-            #  self.controller.your_method_to_terminate_the_communication()  # when writing your own plugin replace this line
-            ...
+            self.controller.disconnect_usb()  # when writing your own plugin replace this line
+
 
     def grab_data(self, Naverage=1, **kwargs):
         """Start a grab from the detector
@@ -118,11 +119,12 @@ class DAQ_0DViewer_335TempController(DAQ_Viewer_base):
         ## TODO for your custom plugin: you should choose EITHER the synchrone or the asynchrone version following
 
         # synchrone version (blocking function)
-        raise NotImplementedError  # when writing your own plugin remove this line
-        data_tot = self.controller.your_method_to_start_a_grab_snap()
+        # raise NotImplementedError  # when writing your own plugin remove this line
+        data_tot = self.controller.get_all_kelvin_reading()
         self.dte_signal.emit(DataToExport(name='temperature',
-                                          data=[DataFromPlugins(name='Temperature', data=[np.array(data_tot[0]), np.array(data_tot[1])],
+                                          data=[DataFromPlugins(name='Temperature', data=[np.array([data_tot[1]]), np.array([data_tot[0]])],
                                                                 dim='Data0D', labels=['Channel A', 'Channel B'])]))
+
         #########################################################
 
     #     # asynchrone version (non-blocking function with callback)
@@ -141,9 +143,9 @@ class DAQ_0DViewer_335TempController(DAQ_Viewer_base):
     def stop(self):
         """Stop the current grab hardware wise if necessary"""
         ## TODO for your custom plugin
-        raise NotImplementedError  # when writing your own plugin remove this line
-        self.controller.your_method_to_stop_acquisition()  # when writing your own plugin replace this line
-        self.emit_status(ThreadCommand('Update_Status', ['Some info you want to log']))
+        #raise NotImplementedError  # when writing your own plugin remove this line
+        #self.controller.your_method_to_stop_acquisition()  # when writing your own plugin replace this line
+        #self.emit_status(ThreadCommand('Update_Status', ['Some info you want to log']))
         ##############################
         return ''
 
