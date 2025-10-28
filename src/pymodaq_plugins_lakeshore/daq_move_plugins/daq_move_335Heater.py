@@ -1,5 +1,8 @@
 
+import numpy as np
+
 from typing import Union, List, Dict
+
 from pymodaq.control_modules.move_utility_classes import (DAQ_Move_base, comon_parameters_fun,
                                                           main, DataActuatorType, DataActuator)
 
@@ -7,7 +10,11 @@ from pymodaq_utils.utils import ThreadCommand  # object used to send info back t
 from pymodaq_gui.parameter import Parameter
 
 from lakeshore import Model335
+from lakeshore.model_335 import Model335Enums as enums_335
+from lakeshore.temperature_controllers_enums import TemperatureControllerEnums as enums_temp
 
+def items_in_list(list): #TODO put in a different file
+    return [item for a in list]
 
 class DAQ_Move_335Heater(DAQ_Move_base):
     """ Instrument plugin class for an actuator.
@@ -39,16 +46,18 @@ class DAQ_Move_335Heater(DAQ_Move_base):
     # TODO it could be a single float of a list of float (as much as the number of axes)
     #data_actuator_type = DataActuatorType.DataActuator  # wether you use the new data style for actuator otherwise set this
     # as  DataActuatorType.float  (or entirely remove the line)
-    params = comon_parameters+[
+    _controller_units = 'K'
+    _epsilon = 0.1
+    params = [
         {'title': 'Address:', 'name': 'address', 'type': 'str',
                  'value': 'COM6', 'readonly': False},
-        {'title': 'Input:', 'name': 'input', 'type': 'str',
-                'value': 'TWO_INPUT_A', 'readonly': False}, #could be INPUT_A, TWO_INPUT_A, INPUT_B, TWO_INPUT_B
-        {'title': 'Heater Resistance [Ohm]:', 'name': 'resistance', 'type': 'float',
-                'value': 'HEATER_50_OHM', 'readonly': False}, #could be HEATER_50_OHM, ...
+        {'title': 'Input:', 'name': 'input', 'type': 'list',
+                'limits': ['INPUT_A', 'TWO_INPUT_A', 'INPUT_B', 'TWO_INPUT_B'], 'readonly': False},
+        {'title': 'Heater Resistance [Ohm]:', 'name': 'resistance', 'type': 'list',
+                'limits':['HEATER_50_OHM', 'HEATER_25_OHM'], 'readonly': False}, #could be HEATER_50_OHM, ...
         {'title': 'Max Current [A]:', 'name': 'max_current', 'type': 'float',
                 'value': '1', 'readonly': False},
-        {'title': 'Ramp Rate [K/min]:', 'name': 'ramp_rate', 'type': 'float', #
+        {'title': 'Setpoint Ramp Rate [K/min]:', 'name': 'ramp_rate', 'type': 'float', #
                 'value': '1', 'readonly': False},
         {'title': 'P:', 'name': 'p', 'type': 'float',  #
                 'value': '50', 'readonly': False},
@@ -58,9 +67,12 @@ class DAQ_Move_335Heater(DAQ_Move_base):
                 'value': '0', 'readonly': False},
         {'title': 'Setpoint  [K]:', 'name': 'setpoint', 'type': 'float',  #
                 'value': '77', 'readonly': False},
-        {'title': 'Heater Status:', 'name': 'heater_status', 'type': 'float',  #
-                'value': 'LOW', 'readonly': False}, #could be OFF, HIGH, LOW, ...
-    #     ]
+        {'title': 'Heater Status:', 'name': 'heater_status', 'type': 'list',  #
+                'limits': ['OFF', 'LOW', 'MEDIUM', 'HIGH'], 'readonly': False},
+        {'title': 'Heater Output Display:', 'name': 'heater_output_display', 'type': 'list',  #
+            'limits': ['POWER', 'CURRENT'], 'readonly': False}, # POWER or CURRENT
+    ] + comon_parameters_fun(is_multiaxes, axis_names=['Temperature'], epsilon=_epsilon)
+
     # TODO some of these params should be displayed as list of options ?
     # params = [  {'title': 'Address:', 'name': 'address', 'type': 'str',
     #              'value': 'COM6', 'readonly': False},
@@ -124,19 +136,27 @@ class DAQ_Move_335Heater(DAQ_Move_base):
         if param.name() == "address":
             self.controller = Model335(baud_rate = 57600, com_port = self.settings.child("address").value())  #instantiate you driver with whatever arguments are needed
         elif param.name() == "input":
-            display_ = self.params('Input')
-            self.controller.set_display_setup(self.controller.DisplaySetup.display_)
-        elif param.name() == "resistance":
-            heater_resistance = self.params('resistance')
-            self.controller.set_heater_setup_one(self.controller.HeaterResistance.heater_resistance, 1.0,
-                                                 self.controller.HeaterOutputDisplay.POWER)  # TODO : make the heater display a variable
+            display_ = enums_335.DisplaySetup[self.settings.child("input").value()]
+            self.controller.set_display_setup(self.controller.DisplaySetup(display_))
+        elif param.name() == "resistance" or param.name() == "heater_output_display" or param.name() == "max_current":
+            heater_resistance = enums_temp.HeaterResistance[self.settings.child("resistance").value()]
+            heater_output_display = enums_335.HeaterOutputDisplay[self.settings.child("heater_output_display").value()]
+            self.controller.set_heater_setup_one(self.controller.HeaterResistance(heater_resistance), self.settings.child("max_current").value(),
+                                                 self.controller.HeaterOutputDisplay(heater_output_display))
+        elif param.name() == "ramp_rate":
+            ramp_rate = self.settings.child("ramp_rate").value()
+            self.controller.set_setpoint_ramp_parameter(1, True, ramp_rate)
         elif param.name() == "setpoint":
-            set_point = self.params('setpoint')
+            set_point = self.settings.child("setpoint").value()
             self.controller.set_control_setpoint(1, set_point)
+        elif param.name() == "p" or param.name() == "i" or param.name() == "d":
+            p = self.settings.child("p").value()
+            i = self.settings.child("i").value()
+            d = self.settings.child("d").value()
+            self.controller.set_heater_pid(1, p, i, d)
         elif param.name() == "heater_status":
-            heater_range = self.params('heater_status')
-            self.controller.set_heater_range(1, self.controller.HeaterRange.heater_range)
-
+            heater_range = enums_335.HeaterRange[self.settings.child("heater_status").value()]
+            self.controller.set_heater_range(1, self.controller.HeaterRange(heater_range))
 
         else:
             pass
@@ -155,27 +175,26 @@ class DAQ_Move_335Heater(DAQ_Move_base):
         initialized: bool
             False if initialization failed otherwise True
         """
-
         if self.is_master:
             self.controller = Model335(baud_rate = 57600, com_port = self.settings.child("address").value())  #instantiate you driver with whatever arguments are needed
 
             # Configure the display mode
-            display_ = self.params('Input')
-            print(display)
-            self.controller.set_display_setup(self.controller.DisplaySetup.display_)
 
+            display_ = enums_335.DisplaySetup[self.settings.child("input").value()]
+            self.controller.set_display_setup(self.controller.DisplaySetup(display_))
             # Configure heater output 1 using the HeaterSetup class and set_heater_setup method
-            heater_resistance = self.params('resistance')
-            self.controller.set_heater_setup_one(self.controller.HeaterResistance.heater_resistance, 1.0,
-                                              self.controller.HeaterOutputDisplay.POWER) #TODO : make the heater display a variable
+            heater_resistance = enums_temp.HeaterResistance[self.settings.child('resistance').value()]
+            heater_output_display = enums_335.HeaterOutputDisplay[self.settings.child('heater_output_display').value()]
+            self.controller.set_heater_setup_one(self.controller.HeaterResistance(heater_resistance), 1.0,
+                                                 self.controller.HeaterOutputDisplay(heater_output_display))
 
             # Configure heater output 1 to the setpoint
-            set_point = self.params('setpoint')
+            set_point = self.settings.child('setpoint').value()
             self.controller.set_control_setpoint(1, set_point)
 
             # Turn on the heater by setting the range
-            heater_range = self.params('heater_status')
-            self.controller.set_heater_range(1, self.controller.HeaterRange.heater_range)
+            heater_range = enums_335.HeaterRange[self.settings.child("heater_status").value()]
+            self.controller.set_heater_range(1, self.controller.HeaterRange(heater_range))
 
             initialized = True
 
@@ -225,10 +244,8 @@ class DAQ_Move_335Heater(DAQ_Move_base):
         """Stop the actuator and emits move_done signal"""
 
         ## TODO for your custom plugin
-        raise NotImplementedError  # when writing your own plugin remove this line
-        kelvin_reading = self.controller.get_kelvin_reading(1)
-        self.controller.set_control_setpoint(1, kelvin_reading)
-        self.emit_status(ThreadCommand('Update_Status', ['Changed setpoint to current value {}K'.format(kelvin_reading)]))
+        #raise NotImplementedError  # when writing your own plugin remove this line
+        self.controller.set_heater_range(1, self.controller.HeaterRange.OFF)
 
 
 if __name__ == '__main__':

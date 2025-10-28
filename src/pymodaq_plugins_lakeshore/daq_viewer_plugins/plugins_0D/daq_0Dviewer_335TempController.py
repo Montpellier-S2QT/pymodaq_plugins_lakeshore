@@ -86,14 +86,6 @@ class DAQ_0DViewer_335TempController(DAQ_Viewer_base):
             self.controller = controller
             initialized = True
 
-        # TODO for your custom plugin (optional) initialize viewers panel with the future type of data
-        # data_tot = self.controller.get_all_kelvin_reading()
-        # self.dte_signal_temp.emit(DataToExport(name='temperature',
-        #                                        data=[DataFromPlugins(name='temperature',
-        #                                                             data=[np.array(data_tot[0]), np.array(data_tot[0])],
-        #                                                             dim='Data0D',
-        #                                                             labels=['Channel A', 'Channel B'])]))
-
         info = "Initialized connection."
         return info, initialized
 
@@ -116,13 +108,11 @@ class DAQ_0DViewer_335TempController(DAQ_Viewer_base):
         kwargs: dict
             others optionals arguments
         """
-        ## TODO for your custom plugin: you should choose EITHER the synchrone or the asynchrone version following
 
         # synchrone version (blocking function)
-        # raise NotImplementedError  # when writing your own plugin remove this line
         data_tot = self.controller.get_all_kelvin_reading()
         self.dte_signal.emit(DataToExport(name='temperature',
-                                          data=[DataFromPlugins(name='Temperature', data=[np.array([data_tot[1]]), np.array([data_tot[0]])],
+                                          data=[DataFromPlugins(name='Temperature', data=[np.array([data_tot[0]]), np.array([data_tot[1]])],
                                                                 dim='Data0D', labels=['Channel A', 'Channel B'])]))
 
         #########################################################
