@@ -49,6 +49,7 @@ Below is the list of instruments included in this plugin
 Actuators
 +++++++++
 
+* **335 Temperature Controller**: control of a temperature actuator (heater output 1)
 
 Viewer0D
 ++++++++
