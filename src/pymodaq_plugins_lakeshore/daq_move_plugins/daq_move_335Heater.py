@@ -13,9 +13,6 @@ from lakeshore import Model335
 from lakeshore.model_335 import Model335Enums as enums_335
 from lakeshore.temperature_controllers_enums import TemperatureControllerEnums as enums_temp
 
-def items_in_list(list): #TODO put in a different file
-    return [item for a in list]
-
 class DAQ_Move_335Heater(DAQ_Move_base):
     """ Instrument plugin class for an actuator.
     
@@ -179,7 +176,6 @@ class DAQ_Move_335Heater(DAQ_Move_base):
             self.controller = Model335(baud_rate = 57600, com_port = self.settings.child("address").value())  #instantiate you driver with whatever arguments are needed
 
             # Configure the display mode
-
             display_ = enums_335.DisplaySetup[self.settings.child("input").value()]
             self.controller.set_display_setup(self.controller.DisplaySetup(display_))
             # Configure heater output 1 using the HeaterSetup class and set_heater_setup method
